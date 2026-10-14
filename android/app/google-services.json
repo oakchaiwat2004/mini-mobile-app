@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "222277297110",
+    "project_id": "book-borrow-app-53ee0",
+    "storage_bucket": "book-borrow-app-53ee0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:222277297110:android:bdae1c532fe46347ac7a77",
+        "android_client_info": {
+          "package_name": "com.example.book_borrow_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAK2QKTcATonGMXFYkv6H_ZzPje0REgTk0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
