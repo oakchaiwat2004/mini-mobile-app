@@ -125,7 +125,7 @@ class _LoginPageState extends State<LoginPage> {
                   Text('เข้าสู่ระบบ', style: Theme.of(context).textTheme.headlineSmall),
                   const SizedBox(height: 6),
                   const Text(
-                    'ใช้บัญชี Firebase ของคุณเพื่อเริ่มต้นใช้งาน',
+                    'กรุณาเข้าสู่ระบบเพื่อใช้งานแอปพลิเคชัน',
                     style: TextStyle(color: AppColors.muted, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 20),
@@ -189,7 +189,7 @@ class _LoginPageState extends State<LoginPage> {
                   const SizedBox(height: 16),
                   const Center(
                     child: Text(
-                      '🔒 ข้อมูลบัญชีจัดการโดย Firebase Authentication',
+                      'กรุณาเข้าสู่ระบบเพื่อใช้งานแอปพลิเคชัน',
                       style: TextStyle(color: AppColors.muted, fontSize: 11),
                     ),
                   ),

@@ -18,8 +18,10 @@ class FirestoreService {
   CollectionReference<Map<String, dynamic>> get _loanRef =>
       _db.collection('users').doc(uid).collection('loans');
 
-  CollectionReference<Map<String, dynamic>> get _favoriteRef =>
-      _db.collection('users').doc(uid).collection('favorites');
+  CollectionReference<Map<String, dynamic>> get _reviewRef =>
+      _db.collection('reviews');
+
+  // --- ข้อมูลโปรไฟล์ผู้ใช้ ---
 
   Future<void> createUserProfile({
     required User user,
@@ -40,6 +42,8 @@ class FirestoreService {
           (snapshot) => snapshot.data(),
         );
   }
+
+  // --- จัดการการยืม-คืนหนังสือ ---
 
   Future<void> borrowBook(Book book) async {
     final activeLoans = await _loanRef
@@ -85,49 +89,45 @@ class FirestoreService {
     return _loanRef.where('status', isEqualTo: 'returned').snapshots();
   }
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> favoritesStream() {
-    return _favoriteRef.snapshots();
-  }
+  // --- ระบบรีวิวและการให้คะแนน (ไม่ต้องใช้ User ID) ---
 
-  Stream<bool> isFavoriteStream(String bookId) {
-    try {
-      return _favoriteRef.doc(bookId).snapshots().map((doc) => doc.exists);
-    } catch (_) {
-      return Stream.value(false);
-    }
-  }
+  /// บันทึกรีวิวหนังสือเล่มใหม่ลง Firestore โดยตรง
+  Future<void> submitReview({
+    required Book book,
+    required double rating,
+    required String comment,
+    String reviewerName = 'ผู้ใช้งานทั่วไป',
+  }) async {
+    final name = reviewerName.trim().isEmpty ? 'ผู้ใช้งานทั่วไป' : reviewerName.trim();
 
-  Future<bool> isFavorite(String bookId) async {
-    final doc = await _favoriteRef.doc(bookId).get();
-    return doc.exists;
-  }
-
-  
-    Future<void> toggleFavorite(Book book) async {
-    final ref = _favoriteRef.doc(book.id);
-    final snapshot = await ref.get();
-
-    if (snapshot.exists) {
-      await ref.delete();
-      return;
-    }
-
-    // บันทึกเฉพาะฟิลด์ที่จำเป็นต่อการแสดงผล
-    await ref.set({
+    await _reviewRef.add({
       'bookId': book.id,
-      'title': book.title,
-      'authors': book.authors,
-      'description': book.description,
-      'imageUrl': book.imageUrl,
-      'publisher': book.publisher,
-      'publishedDate': book.publishedDate,
-      'pageCount': book.pageCount,
-      'categories': book.categories,
-      'isbn': book.isbn,
-      'previewLink': book.previewLink,
-      'savedAt': FieldValue.serverTimestamp(),
+      'bookTitle': book.title,
+      'bookThumbnail': book.imageUrl,
+      'bookAuthors': book.authors,
+      'userName': name,
+      'rating': rating,
+      'comment': comment.trim(),
+      'createdAt': FieldValue.serverTimestamp(),
     });
   }
+
+  /// สตรีมดึงรีวิวของหนังสือเฉพาะเล่ม
+  Stream<QuerySnapshot<Map<String, dynamic>>> bookReviewsStream(String bookId) {
+    return _reviewRef
+        .where('bookId', isEqualTo: bookId)
+        .orderBy('createdAt', descending: true)
+        .snapshots();
+  }
+
+  /// สตรีมดึงรีวิวทั้งหมดของระบบ (สำหรับหน้ารวมรีวิว)
+  Stream<QuerySnapshot<Map<String, dynamic>>> allReviewsStream() {
+    return _reviewRef
+        .orderBy('createdAt', descending: true)
+        .snapshots();
+  }
+
+  // --- ข้อมูลโปรไฟล์ ---
 
   Future<void> updateDisplayName(String displayName) async {
     final name = displayName.trim();

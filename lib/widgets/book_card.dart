@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../models/book.dart';
@@ -68,10 +69,11 @@ class BookCard extends StatelessWidget {
                           iconSize: 44,
                         ),
                       ),
+                      // ป้ายแสดงคะแนนรีวิวเฉลี่ยที่มุมขวาบน
                       Positioned(
                         top: 6,
                         right: 6,
-                        child: _FavoriteCardButton(book: book),
+                        child: _BookRatingBadge(bookId: book.id),
                       ),
                     ],
                   ),
@@ -105,87 +107,64 @@ class BookCard extends StatelessWidget {
   }
 }
 
-class _FavoriteCardButton extends StatefulWidget {
-  final Book book;
+/// ป้ายแสดงคะแนนดาวเฉลี่ยบนมุมการ์ดหนังสือ
+class _BookRatingBadge extends StatelessWidget {
+  final String bookId;
+  static final FirestoreService _firestore = FirestoreService();
 
-  const _FavoriteCardButton({required this.book});
-
-  @override
-  State<_FavoriteCardButton> createState() => _FavoriteCardButtonState();
-}
-
-class _FavoriteCardButtonState extends State<_FavoriteCardButton> {
-  final FirestoreService _firestore = FirestoreService();
-  bool _isLoading = false;
-
-  Future<void> _toggleFavorite(bool currentStatus) async {
-    if (_isLoading) return;
-    setState(() => _isLoading = true);
-
-    try {
-      await _firestore.toggleFavorite(widget.book);
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            currentStatus
-                ? 'นำ “${widget.book.title}” ออกจากรายการโปรดแล้ว'
-                : 'บันทึก “${widget.book.title}” ลงรายการโปรดแล้ว',
-          ),
-          duration: const Duration(milliseconds: 1500),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('เกิดข้อผิดพลาด: $e')),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
+  const _BookRatingBadge({required this.bookId});
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white.withValues(alpha: 0.92),
-      shape: const CircleBorder(),
-      elevation: 2,
-      child: StreamBuilder<bool>(
-        stream: _firestore.isFavoriteStream(widget.book.id),
-        builder: (context, snapshot) {
-          final isFav = snapshot.data ?? false;
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: _firestore.bookReviewsStream(bookId),
+      builder: (context, snapshot) {
+        final docs = snapshot.data?.docs ?? [];
+        if (docs.isEmpty) {
+          return const SizedBox.shrink(); // หากยังไม่มีรีวิวจะไม่แสดงป้าย
+        }
 
-          if (_isLoading) {
-            return const SizedBox(
-              width: 32,
-              height: 32,
-              child: Padding(
-                padding: EdgeInsets.all(7),
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            );
-          }
+        // คำนวณคะแนนเฉลี่ย
+        final totalRating = docs.fold<double>(
+          0.0,
+          (sum, doc) => sum + ((doc.data()['rating'] as num?)?.toDouble() ?? 0.0),
+        );
+        final avgRating = totalRating / docs.length;
 
-          return InkWell(
-            customBorder: const CircleBorder(),
-            onTap: () => _toggleFavorite(isFav),
-            child: Padding(
-              padding: const EdgeInsets.all(6),
-              child: Icon(
-                isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                color: isFav ? const Color(0xFFE45B68) : const Color(0xFF8E8E93),
-                size: 20,
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.92),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
               ),
-            ),
-          );
-        },
-      ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.star_rounded,
+                color: Colors.amber,
+                size: 14,
+              ),
+              const SizedBox(width: 3),
+              Text(
+                avgRating.toStringAsFixed(1),
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

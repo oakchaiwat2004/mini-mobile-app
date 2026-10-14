@@ -1,106 +1,166 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../models/book.dart';
 import '../services/firestore_service.dart';
-import '../theme.dart';
 import '../widgets/network_book_image.dart';
 
 class BookDetailPage extends StatefulWidget {
   final Book book;
 
-  const BookDetailPage({
-    super.key,
-    required this.book,
-  });
+  const BookDetailPage({super.key, required this.book});
 
   @override
   State<BookDetailPage> createState() => _BookDetailPageState();
 }
 
 class _BookDetailPageState extends State<BookDetailPage> {
-  final firestore = FirestoreService();
+  final FirestoreService _firestoreService = FirestoreService();
+  bool _isLoading = false;
 
-  bool favorite = false;
-  bool loading = false;
-  bool borrowed = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadFavorite();
-    _checkBorrowed();
-  }
-
-  Future<void> _loadFavorite() async {
+  Future<void> _borrowBook() async {
+    setState(() => _isLoading = true);
     try {
-      final value = await firestore.isFavorite(widget.book.id);
-      if (mounted) setState(() => favorite = value);
-    } catch (_) {}
-  }
-
-  Future<void> _checkBorrowed() async {
-    try {
-      final snapshot = await firestore.currentLoansStream().first;
-      final exists = snapshot.docs.any(
-        (doc) => doc.data()['bookId'] == widget.book.id,
-      );
-      if (mounted) setState(() => borrowed = exists);
-    } catch (_) {}
-  }
-
-  Future<void> _toggleFavorite() async {
-    try {
-      await firestore.toggleFavorite(widget.book);
-      if (!mounted) return;
-
-      setState(() => favorite = !favorite);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            favorite ? 'เพิ่มหนังสือในรายการโปรดแล้ว' : 'นำหนังสือออกจากรายการโปรดแล้ว',
+      await _firestoreService.borrowBook(widget.book);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('ยืมหนังสือสำเร็จแล้ว!'),
+            backgroundColor: Colors.green,
           ),
-        ),
-      );
-    } catch (e) {
-      _show(e.toString());
-    }
-  }
-
-  Future<void> _borrow() async {
-    setState(() => loading = true);
-
-    try {
-      await firestore.borrowBook(widget.book);
-      if (!mounted) return;
-
-      setState(() {
-        borrowed = true;
-        loading = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('ยืมหนังสือสำเร็จ • กำหนดคืนภายใน 7 วัน'),
-        ),
-      );
+        );
+      }
     } catch (e) {
       if (mounted) {
-        setState(() => loading = false);
-        _show(e.toString());
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
       }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  void _show(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
-  }
+  // แสดง Dialog ให้พิมพ์ชื่อ เลือกระดับดาว และเขียนรีวิวได้ทันที
+  void _showReviewDialog() {
+    double selectedRating = 5.0;
+    final nameController = TextEditingController();
+    final commentController = TextEditingController();
 
-  String get authorText {
-    return widget.book.authors.isEmpty
-        ? 'ไม่ทราบผู้เขียน'
-        : widget.book.authors.join(', ');
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: const Text('เขียนรีวิว'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(5, (index) {
+                        return IconButton(
+                          padding: EdgeInsets.zero,
+                          icon: Icon(
+                            index < selectedRating
+                                ? Icons.star_rounded
+                                : Icons.star_outline_rounded,
+                            color: Colors.amber,
+                            size: 36,
+                          ),
+                          onPressed: () {
+                            setModalState(() {
+                              selectedRating = (index + 1).toDouble();
+                            });
+                          },
+                        );
+                      }),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: nameController,
+                      decoration: InputDecoration(
+                        hintText: 'ชื่อของคุณ (เว้นว่างได้)',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: commentController,
+                      maxLines: 3,
+                      decoration: InputDecoration(
+                        hintText: 'แชร์ความคิดเห็นเกี่ยวกับหนังสือเล่มนี้...',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('ยกเลิก'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  onPressed: () async {
+                    try {
+                      await _firestoreService.submitReview(
+                        book: widget.book,
+                        rating: selectedRating,
+                        comment: commentController.text,
+                        reviewerName: nameController.text,
+                      );
+                      if (dialogContext.mounted) {
+                        Navigator.pop(dialogContext);
+                      }
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('ส่งรีวิวเรียบร้อยแล้ว'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('เกิดข้อผิดพลาด: $e'),
+                            backgroundColor: Colors.redAccent,
+                          ),
+                        );
+                      }
+                    }
+                  },
+                  child: const Text('ส่งรีวิว'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -109,305 +169,227 @@ class _BookDetailPageState extends State<BookDetailPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('รายละเอียดหนังสือ'),
+        title: Text(book.title),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 10),
-            child: IconButton.filledTonal(
-              tooltip: favorite ? 'นำออกจากรายการโปรด' : 'เพิ่มรายการโปรด',
-              onPressed: _toggleFavorite,
-              icon: Icon(
-                favorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-              ),
-            ),
+          IconButton(
+            tooltip: 'เขียนรีวิว',
+            icon: const Icon(Icons.rate_review_outlined),
+            onPressed: _showReviewDialog,
           ),
         ],
       ),
-      bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.fromLTRB(18, 8, 18, 12),
-        child: FilledButton.icon(
-          onPressed: borrowed || loading ? null : _borrow,
-          icon: Icon(
-            borrowed ? Icons.check_circle_rounded : Icons.bookmark_add_rounded,
-          ),
-          label: Text(
-            borrowed ? 'กำลังยืมหนังสือเล่มนี้' : 'ยืมหนังสือเล่มนี้',
-          ),
-        ),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
-        children: [
-          Container(
-            height: 320,
-            decoration: BoxDecoration(
-              color: AppColors.mint,
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: AppColors.border),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: NetworkBookImage.fromBook(
-              book,
-              fit: BoxFit.contain,
-              iconSize: 86,
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            book.title,
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          const SizedBox(height: 8),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(Icons.person_outline_rounded, size: 19, color: AppColors.primary),
-              const SizedBox(width: 7),
-              Expanded(
-                child: Text(
-                  authorText,
-                  style: const TextStyle(
-                    color: AppColors.muted,
-                    fontWeight: FontWeight.w600,
-                  ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: SizedBox(
+                  width: 140,
+                  height: 200,
+                  child: NetworkBookImage(imageUrl: book.imageUrl),
                 ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              book.title,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'ผู้แต่ง: ${book.authors.isEmpty ? 'ไม่ระบุ' : book.authors.join(', ')}',
+              style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+            ),
+            if (book.publisher.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                'สำนักพิมพ์: ${book.publisher}',
+                style: TextStyle(fontSize: 14, color: Colors.grey[700]),
               ),
             ],
-          ),
-          const SizedBox(height: 18),
-          _InfoGrid(book: book),
-          if (book.categories.isNotEmpty) ...[
-            const SizedBox(height: 18),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: book.categories
-                  .take(4)
-                  .map(
-                    (category) => Chip(
-                      avatar: const Icon(Icons.sell_outlined, size: 16),
-                      label: Text(category),
-                    ),
-                  )
-                  .toList(),
+            const Divider(height: 32),
+            const Text(
+              'คำอธิบาย',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
-          ],
-          const SizedBox(height: 24),
-          const _DetailSectionTitle(title: 'เกี่ยวกับหนังสือ'),
-          const SizedBox(height: 8),
-          _DescriptionCard(
-            text: book.description.isEmpty
-                ? 'ไม่มีคำอธิบายจากแหล่งข้อมูลภายนอก'
-                : _stripHtml(book.description),
-          ),
-          if (book.isbn.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            _SimpleInfoRow(
-              icon: Icons.qr_code_2_rounded,
-              title: 'ISBN',
-              value: book.isbn,
+            const SizedBox(height: 8),
+            Text(
+              book.description.isEmpty ? 'ไม่มีข้อมูลคำอธิบาย' : book.description,
+              style: const TextStyle(fontSize: 14, height: 1.5),
             ),
-          ],
-          const SizedBox(height: 12),
-          if (book.previewLink.isNotEmpty)
-            OutlinedButton.icon(
-              onPressed: () {
-                _show('ลิงก์ตัวอย่างหนังสือ: ${book.previewLink}');
-              },
-              icon: const Icon(Icons.open_in_new_rounded),
-              label: const Text('ดูตัวอย่างหนังสือ'),
-            ),
-        ],
-      ),
-    );
-  }
+            const Divider(height: 36),
 
-  String _stripHtml(String value) {
-    return value
-        .replaceAll(RegExp(r'<[^>]*>'), '')
-        .replaceAll('&nbsp;', ' ')
-        .replaceAll('&amp;', '&');
-  }
-}
-
-class _InfoGrid extends StatelessWidget {
-  final Book book;
-
-  const _InfoGrid({required this.book});
-
-  @override
-  Widget build(BuildContext context) {
-    final items = <Widget>[
-      _InfoTile(
-        icon: Icons.business_outlined,
-        label: 'สำนักพิมพ์',
-        value: book.publisher,
-      ),
-      _InfoTile(
-        icon: Icons.calendar_month_outlined,
-        label: 'เผยแพร่',
-        value: book.publishedDate,
-      ),
-      if (book.pageCount != null)
-        _InfoTile(
-          icon: Icons.menu_book_outlined,
-          label: 'จำนวนหน้า',
-          value: '${book.pageCount} หน้า',
-        ),
-      _InfoTile(
-        icon: Icons.source_outlined,
-        label: 'แหล่งข้อมูล',
-        value: 'Google Books',
-      ),
-    ];
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columns = constraints.maxWidth > 520 ? 4 : 2;
-        return GridView.count(
-          crossAxisCount: columns,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 10,
-          crossAxisSpacing: 10,
-          childAspectRatio: 2.45,
-          children: items,
-        );
-      },
-    );
-  }
-}
-
-class _InfoTile extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-
-  const _InfoTile({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: AppColors.primary, size: 20),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
+            // แถบแสดงรีวิว
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: AppColors.muted,
-                    fontWeight: FontWeight.w600,
-                  ),
+                const Text(
+                  'รีวิวและความคิดเห็น',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                  ),
+                TextButton.icon(
+                  icon: const Icon(Icons.edit, size: 16),
+                  label: const Text('เขียนรีวิว'),
+                  onPressed: _showReviewDialog,
                 ),
               ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+            const SizedBox(height: 10),
 
-class _DetailSectionTitle extends StatelessWidget {
-  final String title;
+            StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: _firestoreService.bookReviewsStream(book.id),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: CircularProgressIndicator(),
+                    ),
+                  );
+                }
 
-  const _DetailSectionTitle({required this.title});
+                final docs = snapshot.data?.docs ?? [];
+                if (docs.isEmpty) {
+                  return Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      children: const [
+                        Icon(Icons.rate_review_outlined, color: Colors.grey, size: 40),
+                        SizedBox(height: 8),
+                        Text(
+                          'ยังไม่มีรีวิวสำหรับหนังสือเล่มนี้',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  );
+                }
 
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: Theme.of(context).textTheme.titleLarge,
-    );
-  }
-}
+                final totalRating = docs.fold<double>(
+                  0.0,
+                  (sum, doc) => sum + ((doc.data()['rating'] as num?)?.toDouble() ?? 0.0),
+                );
+                final averageRating = totalRating / docs.length;
 
-class _DescriptionCard extends StatelessWidget {
-  final String text;
+                return Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.shade50,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.star_rounded, color: Colors.amber, size: 30),
+                          const SizedBox(width: 8),
+                          Text(
+                            averageRating.toStringAsFixed(1),
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'จากทั้งหมด ${docs.length} รีวิว',
+                            style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: docs.length,
+                      separatorBuilder: (_, __) => const Divider(height: 16),
+                      itemBuilder: (context, index) {
+                        final data = docs[index].data();
+                        final rating = (data['rating'] as num?)?.toDouble() ?? 5.0;
+                        final comment = data['comment'] ?? '';
+                        final userName = data['userName'] ?? 'ผู้ใช้งานทั่วไป';
 
-  const _DescriptionCard({required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          height: 1.55,
-          color: AppColors.ink,
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  userName,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                Row(
+                                  children: List.generate(5, (starIdx) {
+                                    return Icon(
+                                      starIdx < rating
+                                          ? Icons.star_rounded
+                                          : Icons.star_outline_rounded,
+                                      color: Colors.amber,
+                                      size: 16,
+                                    );
+                                  }),
+                                ),
+                              ],
+                            ),
+                            if (comment.toString().trim().isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                comment,
+                                style: const TextStyle(fontSize: 13),
+                              ),
+                            ],
+                          ],
+                        );
+                      },
+                    ),
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 24),
+          ],
         ),
       ),
-    );
-  }
-}
-
-class _SimpleInfoRow extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String value;
-
-  const _SimpleInfoRow({
-    required this.icon,
-    required this.title,
-    required this.value,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: AppColors.primary),
-          const SizedBox(width: 10),
-          Text(
-            '$title: ',
-            style: const TextStyle(fontWeight: FontWeight.w800),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              overflow: TextOverflow.ellipsis,
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              icon: _isLoading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.menu_book),
+              label: const Text('ยืมหนังสือเล่มนี้', style: TextStyle(fontSize: 16)),
+              onPressed: _isLoading ? null : _borrowBook,
             ),
           ),
-        ],
+        ),
       ),
     );
   }

@@ -3,8 +3,9 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 import 'firebase_options.dart';
-import 'pages/login_page.dart';
 import 'pages/home_page.dart';
+import 'pages/login_page.dart';
+import 'pages/onboarding_page.dart';
 import 'theme.dart';
 
 Future<void> main() async {
@@ -26,7 +27,7 @@ class BookBorrowApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Book Borrow',
       theme: buildAppTheme(),
-      home: const AuthGate(),
+      home: const OnboardingPage(),
     );
   }
 }

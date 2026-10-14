@@ -1,26 +1,20 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    function signedIn() {
-      return request.auth != null;
-    }
-
-    function isOwner(userId) {
-      return signedIn() && request.auth.uid == userId;
-    }
-
+    
+    // ผู้ใช้ที่เข้าสู่ระบบจัดการข้อมูลตนเองและการยืม-คืนได้
     match /users/{userId} {
-      allow read, create, update, delete: if isOwner(userId);
-
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
       match /loans/{loanId} {
-        allow read, create, update, delete: if isOwner(userId);
+        allow read, write: if request.auth != null && request.auth.uid == userId;
       }
+    }
 
-      match /favorites/{bookId} {
-        allow read, create, update, delete: if isOwner(userId);
-      }
+    // ทุกคนสามารถอ่านและเขียนรีวิวได้ทันที ไม่ต้องมี Auth / ID
+    match /reviews/{reviewId} {
+      allow read, create: if true;
+      allow update, delete: if false;
     }
   }
 }

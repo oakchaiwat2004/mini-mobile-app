@@ -25,11 +25,14 @@ class MyBorrowedPage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('กำลังยืม', style: Theme.of(context).textTheme.headlineSmall),
+                      Text('กำลังยืม',
+                          style: Theme.of(context).textTheme.headlineSmall),
                       const SizedBox(height: 4),
                       const Text(
                         'จัดการหนังสือและวันครบกำหนดของคุณ',
-                        style: TextStyle(color: AppColors.muted, fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                            color: AppColors.muted,
+                            fontWeight: FontWeight.w600),
                       ),
                     ],
                   ),
@@ -67,14 +70,16 @@ class MyBorrowedPage extends StatelessWidget {
                 docs.sort((a, b) {
                   final aDate = (a.data()['dueDate'] as Timestamp?)?.toDate();
                   final bDate = (b.data()['dueDate'] as Timestamp?)?.toDate();
-                  return (aDate ?? DateTime(9999)).compareTo(bDate ?? DateTime(9999));
+                  return (aDate ?? DateTime(9999))
+                      .compareTo(bDate ?? DateTime(9999));
                 });
 
                 if (docs.isEmpty) {
                   return const AppEmptyState(
                     icon: Icons.menu_book_outlined,
                     title: 'ยังไม่มีหนังสือที่กำลังยืม',
-                    message: 'เลือกหนังสือจากหน้าแรกหรือค้นหา แล้วกด “ยืมหนังสือ”',
+                    message:
+                        'เลือกหนังสือจากหน้าแรกหรือค้นหา แล้วกด “ยืมหนังสือ”',
                   );
                 }
 
@@ -89,7 +94,10 @@ class MyBorrowedPage extends StatelessWidget {
                           const Expanded(
                             child: Text(
                               'แตะคืนเมื่ออ่านเสร็จ เพื่อให้ยืมเล่มใหม่ได้',
-                              style: TextStyle(color: AppColors.muted, fontSize: 12, fontWeight: FontWeight.w600),
+                              style: TextStyle(
+                                  color: AppColors.muted,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600),
                             ),
                           ),
                         ],
@@ -160,7 +168,8 @@ class _LoanCardState extends State<_LoanCard> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('ยืนยันการคืนหนังสือ'),
-        content: Text('ต้องการคืน “${widget.doc.data()['title'] ?? '-'}” ใช่ไหม?'),
+        content:
+            Text('ต้องการคืน “${widget.doc.data()['title'] ?? '-'}” ใช่ไหม?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -199,7 +208,7 @@ class _LoanCardState extends State<_LoanCard> {
     final data = widget.doc.data();
     final dueDate = (data['dueDate'] as Timestamp?)?.toDate();
     final isOverdue = dueDate != null && dueDate.isBefore(DateTime.now());
-    final days = dueDate == null ? null : dueDate.difference(DateTime.now()).inDays;
+    final days = dueDate?.difference(DateTime.now()).inDays;
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -241,7 +250,8 @@ class _LoanCardState extends State<_LoanCard> {
                   (data['title'] ?? '-').toString(),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w900, height: 1.2),
+                  style:
+                      const TextStyle(fontWeight: FontWeight.w900, height: 1.2),
                 ),
                 const SizedBox(height: 6),
                 Text(
@@ -252,7 +262,8 @@ class _LoanCardState extends State<_LoanCard> {
                 ),
                 const SizedBox(height: 12),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   decoration: BoxDecoration(
                     color: isOverdue ? const Color(0xFFFFF0EF) : AppColors.mint,
                     borderRadius: BorderRadius.circular(12),
@@ -261,7 +272,9 @@ class _LoanCardState extends State<_LoanCard> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        isOverdue ? Icons.warning_amber_rounded : Icons.event_available_rounded,
+                        isOverdue
+                            ? Icons.warning_amber_rounded
+                            : Icons.event_available_rounded,
                         size: 17,
                         color: isOverdue ? AppColors.danger : AppColors.primary,
                       ),
@@ -275,7 +288,9 @@ class _LoanCardState extends State<_LoanCard> {
                                     ? 'ครบกำหนดวันนี้'
                                     : 'เหลือ $days วัน • ${_formatDate(dueDate)}',
                         style: TextStyle(
-                          color: isOverdue ? AppColors.danger : AppColors.primaryDark,
+                          color: isOverdue
+                              ? AppColors.danger
+                              : AppColors.primaryDark,
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
                         ),
